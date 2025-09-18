@@ -4,16 +4,21 @@ import { useState } from "react";
 import PatientForm from "@/components/medical/PatientForm";
 import ResultsPanel from "@/components/medical/ResultsPanel";
 import { runMultiAgentAnalysis } from "@/components/medical/agents";
+import { runMultiAgentAnalysisApi } from "@/components/medical/agents";
 import type { Report } from "@/components/medical/ResultsPanel";
 
 export default function Home() {
   const [report, setReport] = useState<Report | null>(null);
   const [running, setRunning] = useState(false);
+  const [useApi, setUseApi] = useState(false);
+  const [apiUrl, setApiUrl] = useState("http://localhost:8000/analyze");
 
   const handleAnalyze = async (patientInfo: string) => {
     try {
       setRunning(true);
-      const r = await runMultiAgentAnalysis(patientInfo);
+      const r = useApi
+        ? await runMultiAgentAnalysisApi(patientInfo, apiUrl)
+        : await runMultiAgentAnalysis(patientInfo);
       setReport(r);
       // Persist latest
       try {
@@ -70,6 +75,24 @@ export default function Home() {
             <p className="text-sm text-muted-foreground mt-1">
               Choose a sample or write your own case. Then run the analysis.
             </p>
+            <div className="mt-4 flex flex-col gap-2">
+              <label className="inline-flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={useApi}
+                  onChange={(e) => setUseApi(e.target.checked)}
+                />
+                Use Web API (FastAPI at http://localhost:8000)
+              </label>
+              <input
+                type="text"
+                className="w-full max-w-md rounded-md border px-3 py-2 text-sm disabled:opacity-60"
+                value={apiUrl}
+                onChange={(e) => setApiUrl(e.target.value)}
+                placeholder="http://localhost:8000/analyze"
+                disabled={!useApi}
+              />
+            </div>
             <div className="mt-6">
               <PatientForm onAnalyze={handleAnalyze} />
             </div>

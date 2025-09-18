@@ -94,3 +94,79 @@ export async function runMultiAgentAnalysis(
 
   return { patient_info: patientInfo, agent_results: results, summary };
 }
+
+// Add: Web API-backed analysis using FastAPI endpoint
+export async function runMultiAgentAnalysisApi(
+  patientInfo: string,
+  endpoint: string = "http://localhost:8000/analyze"
+) {
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      // Map our single-field input into the API's expected shape
+      symptoms: patientInfo,
+      // Optionally include other empty fields; FastAPI has Pydantic validation
+      medical_history: "",
+      blood_results: "",
+      procedures: "",
+      patient_id: "web-ui",
+    }),
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.error || `API request failed (status ${res.status})`);
+  }
+
+  const data = await res.json();
+
+  // Map API response sections to our AgentResult[]
+  const results: AgentResult[] = [];
+
+  if (data?.diagnostic) {
+    results.push({
+      agent: data.diagnostic.agent || "DiagnosticAgent",
+      specialty: "Diagnostic Specialist",
+      model: "api",
+      analysis: [
+        data.diagnostic.diagnosis?.trim?.() || String(data.diagnostic.diagnosis || ""),
+        data.diagnostic.confidence ? `\nConfidence: ${data.diagnostic.confidence}` : undefined,
+      ].filter(Boolean).join("\n"),
+      response_time: "-",
+    });
+  }
+
+  if (data?.blood_analysis) {
+    results.push({
+      agent: data.blood_analysis.agent || "BloodAnalysisAgent",
+      specialty: "Laboratory Specialist",
+      model: "api",
+      analysis: [
+        data.blood_analysis.blood_analysis?.trim?.() || String(data.blood_analysis.blood_analysis || ""),
+        data.blood_analysis.confidence ? `\nConfidence: ${data.blood_analysis.confidence}` : undefined,
+      ].filter(Boolean).join("\n"),
+      response_time: "-",
+    });
+  }
+
+  if (data?.medical_coding) {
+    results.push({
+      agent: data.medical_coding.agent || "MedicalCodingAgent",
+      specialty: "Medical Coder",
+      model: "api",
+      analysis: [
+        data.medical_coding.medical_codes?.trim?.() || String(data.medical_coding.medical_codes || ""),
+        data.medical_coding.confidence ? `\nConfidence: ${data.medical_coding.confidence}` : undefined,
+      ].filter(Boolean).join("\n"),
+      response_time: "-",
+    });
+  }
+
+  const summary: string =
+    typeof data?.summary === "string" && data.summary.trim().length > 0
+      ? data.summary
+      : "Integrated summary unavailable from API.";
+
+  return { patient_info: patientInfo, agent_results: results, summary };
+}
